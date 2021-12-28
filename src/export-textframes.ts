@@ -36,9 +36,9 @@ type ProgressWindowOptions = {
 }
 
 class ProgressWindow {
-  w: Window
-  t: StaticText
-  p: Progressbar
+  private w: Window
+  private t: StaticText
+  private p: Progressbar
 
   constructor(opts: ProgressWindowOptions = {}) {
     const w = this.w = new Window('palette', opts.title)
@@ -78,11 +78,10 @@ const exportDataAs = (output: string, opts: ExportDataAsOptions = {}) => {
     log(`Saving canceled`)
     return
   }
-
-  f.encoding = 'UTF-8'
-  f.lineFeed = 'Unix'
   
   log(`Export data as: ${f}`)
+  f.encoding = 'UTF-8'
+  f.lineFeed = 'Unix'
   f.open('w')
   f.write(output)
   f.close()

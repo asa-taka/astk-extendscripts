@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "prettier": "prettier --write '**/*.jsx'",
+    "build": "tsc -p tsconfig.json",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -12,6 +13,8 @@
   "license": "ISC",
   "dependencies": {
     "prettier": "^2.5.1",
+    "types-for-adobe": "^6.0.1",
+    "typescript": "^4.5.4",
     "webpack": "^5.65.0"
   }
 }

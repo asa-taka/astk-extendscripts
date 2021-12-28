@@ -6,6 +6,7 @@ const SCRIPT_PROPS = {
 
 const CONFIG = {
   defaultOutFileName: '~/Desktop/textframes.txt',
+  indicatorWidth: 400,
 }
 
 const map = <T, R>(items: T[], fn: (item: T, index: number) => R) => {
@@ -42,17 +43,17 @@ class ProgressWindow {
   constructor(opts: ProgressWindowOptions = {}) {
     const w = this.w = new Window('palette', opts.title)
     const t = this.t = w.add('statictext')
-    t.preferredSize = [450, -1]
+    t.preferredSize = [CONFIG.indicatorWidth, -1]
   
-    const p = this.p = w.add('progressbar', undefined, 0, 100)
+    const p = this.p = w.add('progressbar', undefined, 0, 1)
     p.value = 0
-    p.preferredSize = [450, -1]
+    p.preferredSize = [CONFIG.indicatorWidth, -1]
   
     w.show()
   }
 
-  set(progressRatio: number, message: string) {
-    this.p.value = progressRatio * 100
+  set(progress: number, message: string) {
+    this.p.value = progress
     this.t.text = message;
     (this.w as any).update()
   }
@@ -73,6 +74,11 @@ const exportDataAs = (output: string, opts: ExportDataAsOptions = {}) => {
     opts.promptMessage,
     opts.filterExpression || 'All files:*.*'
   )
+  if (f === null) {
+    log(`Saving canceled`)
+    return
+  }
+
   f.encoding = 'UTF-8'
   f.lineFeed = 'Unix'
   
@@ -84,7 +90,7 @@ const exportDataAs = (output: string, opts: ExportDataAsOptions = {}) => {
 
 try {
   log('Start script')
-  const pw = new ProgressWindow({ title: 'copy-textbox' })
+  const pw = new ProgressWindow({ title: SCRIPT_PROPS.title })
   const doc = app.activeDocument
 
   let allTexts: string[] = []

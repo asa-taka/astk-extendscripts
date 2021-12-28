@@ -1,0 +1,17 @@
+{
+  "name": "astk-extendscripts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prettier": "prettier --write '**/*.jsx'",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "prettier": "^2.5.1",
+    "webpack": "^5.65.0"
+  }
+}

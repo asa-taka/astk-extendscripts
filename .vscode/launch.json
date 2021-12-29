@@ -10,7 +10,10 @@
             "name": "Build and Run active script",
             "program": "${workspaceFolder}/dist/${fileBasenameNoExtension}.js",
             "preLaunchTask": "tsc-build-task",
-            "stopOnEntry": false
+            "stopOnEntry": false,
+            "targetSpecifier": "illustrator-26.064",
+            // "trace": true,
+            // "traceString": "V"
         }
     ]
 }

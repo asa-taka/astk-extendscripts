@@ -9,6 +9,7 @@ const CONFIG = {
   indicatorWidth: 400,
 }
 
+
 // Array Utilities
 // ---------------
 
@@ -28,6 +29,12 @@ const filter = <T>(items: T[], fn: (item: T, index: number) => boolean) => {
   return res
 }
 
+const lastOf = <T>(items: T[]) => {
+  if (!items.length) warn('Attempt to get last item of empty array')
+  return items[items.length - 1]
+}
+
+
 // Output Utilities
 // ----------------
 
@@ -35,7 +42,7 @@ type JsonValue = Record<string, any> | Array<JsonValue> | string | number | bool
 
 const jsonStringify = (() => {
   const q = (s: string) => '"' + s + '"'
-  const sp = (indent: number, lv: number) => (indent ? '\n' : '') + Array(lv * indent + 1).join(' ')
+  const sp = (indent: number, lv: number) => (indent ? '\n' : ' ') + Array(lv * indent + 1).join(' ')
   const printObj = (lp: string, tokens: string[], rp: string, indent: number, lv: number) => {
     if (!tokens.length) return lp + rp
     return lp + sp(indent, lv + 1) + tokens.join(',' + sp(indent, lv + 1)) + sp(indent, lv) + rp
@@ -43,19 +50,24 @@ const jsonStringify = (() => {
   const stringify = (v: JsonValue, indent: number, lv: number, path: any[]): string => {
     if (!(v instanceof Object)) return typeof v === 'string' ? q(v) : '' + v
     for (let o of path) if (v === o) return q('[CIRCULAR]')
+    if ('toJSON' in v) return v.toJSON()
     const sv: string[] = []
     if (v instanceof Array) {
       for (let e of v) sv.push(stringify(e, indent, lv + 1, path.concat([v])))
       return printObj('[', sv, ']', indent, lv)
     }
-    for (let k in v) sv.push(q(k) + ': ' + stringify(v[k], indent, lv + 1, path.concat([v])))
+    for (let k in v) if (v[k] !== undefined ) sv.push(q(k) + ': ' + stringify(v[k], indent, lv + 1, path.concat([v])))
     return printObj('{', sv, '}', indent, lv)
   }
   return (v: JsonValue, indent?: number) => stringify(v, indent || 0, 0, [])
 })()
 
 const log = (...values: any[]) => {
-  $.writeln(`${new Date().toTimeString()}: ${map(values, v => jsonStringify(v)).join(' ')}`)
+  $.writeln(`${new Date().toTimeString()}: ${map(values, v => jsonStringify(v, 2)).join(' ')}`)
+}
+
+const warn = (...values: any[]) => {
+  log('WARN:', ...values)
 }
 
 type ExportDataAsOptions = {
@@ -85,6 +97,7 @@ const exportDataAs = (output: string | string[], opts: ExportDataAsOptions = {})
 /** Escape LF characters. */
 const escapeLf = (s: string) => s.replace(/\r\n|\r|\n/g, '\\n')
 
+
 // SupportedType
 // -------------
 
@@ -95,10 +108,30 @@ const isSupportedItem = (item: any): item is SupportedItem => {
   return item instanceof SymbolItem || item instanceof TextFrame
 }
 
-const stringifyItem = (item: SupportedItem): string => {
+interface Jsonable {
+  toJSON(): string
+}
+
+const r = (v: number) => Math.round(v * 100) / 100
+const getPositionString = (item: SupportedItem) => {
+  return `(x:${r(item.left)}, y:${r(item.top)}, z:${r(item.absoluteZOrderPosition)})`
+}
+
+interface SymbolItem extends Jsonable {}
+SymbolItem.prototype.toJSON = function () {
+  return `[SymbolItem ${stringifyItem(this)}: ${getPositionString(this)}]`
+}
+
+interface TextFrame extends Jsonable {}
+TextFrame.prototype.toJSON = function () {
+  return `[TextFrame ${stringifyItem(this)}: ${getPositionString(this)}]`
+}
+
+const stringifyItem = (item: SupportedItem) => {
   if (item instanceof SymbolItem) return item.symbol.name
   return item.contents
 }
+
 
 // TargetDefinition
 // ----------------
@@ -126,43 +159,48 @@ const targetDefs: { [k in TargetKey]: TargetDefinition } = {
         const item = items[i]
         if (item instanceof TextFrame) return [item.contents]
       }
-      return [stringifyItem(items[items.length - 1])]
+      return [stringifyItem(lastOf(items))]
     }
   },
 }
 
+
 // OrderDefinition
 // ---------------
 
-const orderKeys = ['layer', 'positionX', 'positionY'] as const
+const orderKeys = ['stacking', 'positionX', 'positionY'] as const
 type OrderKey = typeof orderKeys[any]
 
 type OrderDefinition = {
   label: string,
-  compare: (o1: SupportedItem, o2: SupportedItem) => -1 | 0 | 1,
+  compare: (a: SupportedItem, b: SupportedItem) => -1 | 0 | 1,
 }
 
 const ascCompare = (a: number, b: number) => a === b ? 0 : a < b ? -1 : 1
+const descCompare = (a: number, b: number) => a === b ? 0 : a > b ? -1 : 1
+const createComparator = (extract: (v: SupportedItem) => number, order: 'asc' | 'desc') => {
+  const compare = order === 'asc' ? ascCompare : descCompare
+  return (a: SupportedItem, b: SupportedItem) => compare(extract(a), extract(b))
+}
 
 const orderDefs: { [k in OrderKey]: OrderDefinition } = {
-  layer: {
-    label: 'Layer',
-    compare: ({ zOrderPosition: z1 }, { zOrderPosition: z2 }) => ascCompare(z1, z2)
+  stacking: {
+    label: 'Stacking order',
+    compare: createComparator(item => item.absoluteZOrderPosition, 'desc')
   },
   positionX: {
-    label: 'Position(horizontal)',
-    compare: ({ left: x1 }, { left: x2 }) => ascCompare(x1, x2)
+    label: 'Position-X (horizontal order)',
+    compare: createComparator(item => item.left, 'asc')
   },
   positionY: {
-    label: 'Position(vertical)',
-    compare: ({ top: y1 }, { top: y2 }) => ascCompare(y1, y2)
+    label: 'Position-Y (vertical order)',
+    compare: createComparator(item => item.top, 'desc')
   }
 }
 
 const sort = (order: OrderKey, items: SupportedItem[]): SupportedItem[] => {
-  const comparator = orderDefs[order].compare
-  const sortedItems = [...items]
-  return sortedItems.sort(comparator)
+  // return [...items].sort((a, b) => a.absoluteZOrderPosition > b.absoluteZOrderPosition ? -1 : 1)
+  return [...items].sort(orderDefs[order].compare)
 }
 
 // Radiobuttons
@@ -189,7 +227,7 @@ class RadioButtons<T extends string> {
     g.preferredSize = [CONFIG.indicatorWidth, -1]
 
     this.buttonDefs = opts.items
-    forEach(opts.items, (item, i) => {
+    forEach(opts.items, (item) => {
       const btn = g.add('radiobutton', undefined, item.title)
       btn.preferredSize = [CONFIG.indicatorWidth, -1]
       this.buttons[item.key] = btn
@@ -333,6 +371,7 @@ const main = () => {
     const sortedTargets = sort(userOpts.order, targets)
     const strItems = map(targetDefs[userOpts.target].format(sortedTargets), escapeLf)
     res[doc.artboards[i].name] = strItems
+
     log('Artboards', i, strItems)
     pp.set(i / doc.artboards.length, `Artboard${i}: ${strItems.join(', ').slice(0, 100)}`)
   }

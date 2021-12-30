@@ -132,6 +132,12 @@ const stringifyItem = (item: SupportedItem) => {
   return item.contents
 }
 
+// Misc for JSON output
+
+interface Artboard extends Jsonable {}
+Artboard.prototype.toJSON = function () {
+  return `[Artboard ${this.name}]`
+}
 
 // TargetDefinition
 // ----------------
@@ -351,6 +357,32 @@ class ProgressPalette {
 // Main Procedure
 // --------------
 
+const getActiveArtboard = (doc: Document) => {
+  return doc.artboards[doc.artboards.getActiveArtboardIndex()]
+}
+
+type ArtboardContents = {
+  artboard: Artboard
+  items: SupportedItem[]
+}
+
+const getAllItems = (doc: Document) => {
+  const res: ArtboardContents[] = []
+  const pp = new ProgressPalette({ title: SCRIPT_PROPS.title })
+  for (let i = 0; i < doc.artboards.length; i++) {
+    doc.selection = null
+    doc.artboards.setActiveArtboardIndex(i)
+    doc.selectObjectsOnActiveArtboard()
+    const items = filter(doc.selection, isSupportedItem)
+    res.push({ artboard: getActiveArtboard(doc), items })
+    pp.set(i / doc.artboards.length, `Artboard${i}: ${map(items, stringifyItem).join(', ').slice(0, 100)}`)
+  }
+  pp.close()
+  return res
+}
+
+type Result = Record<string, string[]>
+
 const main = () => {
   log('Start script')
 
@@ -358,24 +390,15 @@ const main = () => {
   if (!userOpts) return
   log('UserOptions:', userOpts)
 
-  const pp = new ProgressPalette({ title: SCRIPT_PROPS.title })
-  const doc = app.activeDocument
+  const allItems = getAllItems(app.activeDocument)
+  log('AllItems:', allItems)
 
-  const res: Record<string, string[]> = {}
-  for (let i = 0; i < doc.artboards.length; i++) {
-    doc.selection = null
-    doc.artboards.setActiveArtboardIndex(i)
-    doc.selectObjectsOnActiveArtboard()
-
-    const targets: SupportedItem[] = filter(doc.selection, isSupportedItem)
-    const sortedTargets = sort(userOpts.order, targets)
-    const strItems = map(targetDefs[userOpts.target].format(sortedTargets), escapeLf)
-    res[doc.artboards[i].name] = strItems
-
-    log('Artboards', i, strItems)
-    pp.set(i / doc.artboards.length, `Artboard${i}: ${strItems.join(', ').slice(0, 100)}`)
+  const res: Result = {}
+  for (let a of allItems) {
+    const sortedTargets = sort(userOpts.order, a.items)
+    const strItems = targetDefs[userOpts.target].format(sortedTargets)
+    res[a.artboard.name] = map(strItems, escapeLf)
   }
-  pp.close()
 
   exportDataAs(jsonStringify(res, 2), {
     defaultFileName: CONFIG.defaultOutFileName,
@@ -386,6 +409,6 @@ const main = () => {
 try {
   main()
 } catch (e) {
-  alert(e as string)
   $.writeln(e)
+  alert(e as string)
 }

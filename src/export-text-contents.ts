@@ -191,15 +191,15 @@ const createComparator = (extract: (v: SupportedItem) => number, order: 'asc' | 
 
 const orderDefs: { [k in OrderKey]: OrderDefinition } = {
   stacking: {
-    label: 'Stacking order',
+    label: 'Stacking order (front to back)',
     compare: createComparator(item => item.absoluteZOrderPosition, 'desc')
   },
   positionX: {
-    label: 'Position-X (horizontal order)',
+    label: 'Position-X order (horizontally, left to right)',
     compare: createComparator(item => item.left, 'asc')
   },
   positionY: {
-    label: 'Position-Y (vertical order)',
+    label: 'Position-Y order (vertically, top to bottom)',
     compare: createComparator(item => item.top, 'desc')
   }
 }
@@ -363,7 +363,7 @@ const getActiveArtboard = (doc: Document) => {
 
 type ArtboardContents = {
   artboard: Artboard
-  items: SupportedItem[]
+  items: any[]
 }
 
 const getAllItems = (doc: Document) => {
@@ -373,9 +373,8 @@ const getAllItems = (doc: Document) => {
     doc.selection = null
     doc.artboards.setActiveArtboardIndex(i)
     doc.selectObjectsOnActiveArtboard()
-    const items = filter(doc.selection, isSupportedItem)
-    res.push({ artboard: getActiveArtboard(doc), items })
-    pp.set(i / doc.artboards.length, `Artboard${i}: ${map(items, stringifyItem).join(', ').slice(0, 100)}`)
+    res.push({ artboard: getActiveArtboard(doc), items: doc.selection })
+    pp.set(i / doc.artboards.length, `Artboard${i}`)
   }
   pp.close()
   return res
@@ -390,14 +389,17 @@ const main = () => {
   if (!userOpts) return
   log('UserOptions:', userOpts)
 
-  const allItems = getAllItems(app.activeDocument)
-  log('AllItems:', allItems)
-
   const res: Result = {}
-  for (let a of allItems) {
-    const sortedTargets = sort(userOpts.order, a.items)
-    const strItems = targetDefs[userOpts.target].format(sortedTargets)
-    res[a.artboard.name] = map(strItems, escapeLf)
+  for (let a of getAllItems(app.activeDocument)) {
+    log('Artboard:', a.artboard.name, 'Items:', a.items.length)
+
+    const supportedItems: SupportedItem[] = filter(a.items, isSupportedItem)
+    log('Supported Items', a.items)
+
+    const sortedItems = sort(userOpts.order, supportedItems)
+    const strItems = map(targetDefs[userOpts.target].format(sortedItems), escapeLf)
+    log('Stringified Items', strItems)
+    res[a.artboard.name] = strItems
   }
 
   exportDataAs(jsonStringify(res, 2), {

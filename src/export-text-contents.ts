@@ -205,7 +205,6 @@ const orderDefs: { [k in OrderKey]: OrderDefinition } = {
 }
 
 const sort = (order: OrderKey, items: SupportedItem[]): SupportedItem[] => {
-  // return [...items].sort((a, b) => a.absoluteZOrderPosition > b.absoluteZOrderPosition ? -1 : 1)
   return [...items].sort(orderDefs[order].compare)
 }
 
@@ -366,17 +365,26 @@ type ArtboardContents = {
   items: any[]
 }
 
-const getAllItems = (doc: Document) => {
+type GetAllItemsOptions = {
+  onProgress?: (progress: {
+    document: Document
+    artboard: Artboard
+    index: number
+    items: any[]
+  }) => void
+}
+
+const getAllItems = (doc: Document, opts: GetAllItemsOptions = {}) => {
   const res: ArtboardContents[] = []
-  const pp = new ProgressPalette({ title: SCRIPT_PROPS.title })
   for (let i = 0; i < doc.artboards.length; i++) {
     doc.selection = null
     doc.artboards.setActiveArtboardIndex(i)
     doc.selectObjectsOnActiveArtboard()
-    res.push({ artboard: getActiveArtboard(doc), items: doc.selection })
-    pp.set(i / doc.artboards.length, `Artboard${i}`)
+    const artboard = getActiveArtboard(doc)
+    const items = doc.selection
+    res.push({ artboard, items })
+    opts.onProgress?.({ document: doc, artboard, index: i, items })
   }
-  pp.close()
   return res
 }
 
@@ -389,8 +397,16 @@ const main = () => {
   if (!userOpts) return
   log('UserOptions:', userOpts)
 
+  const pp = new ProgressPalette({ title: SCRIPT_PROPS.title })
+  const allItems = getAllItems(app.activeDocument, {
+    onProgress: ({ index: i, document: doc, items }) => {
+      pp.set(i / doc.artboards.length, `Artboard${i}: ${map(filter(items, isSupportedItem), stringifyItem)}`)
+    }
+  })
+  pp.close()
+
   const res: Result = {}
-  for (let a of getAllItems(app.activeDocument)) {
+  for (let a of allItems) {
     log('Artboard:', a.artboard.name, 'Items:', a.items.length)
 
     const supportedItems: SupportedItem[] = filter(a.items, isSupportedItem)
